@@ -1,12 +1,13 @@
-﻿using System;
+﻿using HarmonyLib;
+using RimWorld;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using HarmonyLib;
-using RimWorld;
 using UnityEngine;
 using Verse;
+using Verse.AI;
 using yayoAni.Compat;
 using yayoAni.Data;
 
@@ -68,7 +69,6 @@ namespace yayoAni
 
             return false;
         }
-
 
         private static IEnumerable<CodeInstruction> Transpiler(MethodBase original, IEnumerable<CodeInstruction> instructions)
         {
@@ -200,7 +200,6 @@ namespace yayoAni
             return arCi;
         }
     }
-
 
     [HotSwappable]
     public static class Yayo
@@ -1104,146 +1103,9 @@ namespace yayoAni
                             Log.Message($"[Yayo's Animation] - {pawn.NameShortColored} : {pawn.CurJob.def.defName}");
 
 
-                    int idTick = pawn.thingIDNumber * 20;
                     pdd.forcedShowBody = false;
 
-                    int seed;
-                    int idTickMult;
-                    int idTickDiv;
-                    switch (pawn.CurJob.def.defName)
-                    {
-                        case "Lovin": // 사랑나누기
-                        case "VSIE_OneStandLovin":
-                            if (!Core.settings.lovinEnabled) break;
-                            Building_Bed bed = pawn.CurrentBed();
-                            if (bed == null) break;
-                            var t = (Find.TickManager.TicksGame + idTick % 30) % 360;
-                            const float f = 0.03f;
-                            if (pawn.RaceProps.Humanlike)
-                            {
-                                rot = Core.getRot(pawn.CurJob.targetA.Pawn.DrawPos - pawn.DrawPos, bed.Rotation);
-
-                                if (t <= 160)
-                                {
-                                    if (!Core.Ani(ref t, 20, ref oa, 0f, 5f, -1f, ref op, Vector3.zero, new Vector3(0.05f, 0f, 0.05f), rot, Core.tweenType.sin, bed.Rotation))
-                                        if (!Core.Ani(ref t, 50, ref oa, 5f, 10f, -1f, ref op, new Vector3(0.05f, 0f, 0.05f), new Vector3(0.05f, 0f, 0.1f), rot, Core.tweenType.sin, bed.Rotation))
-                                            if (!Core.Ani(ref t, 50, ref nextUpdate, ref oa, 10f, -1f, ref op, new Vector3(0.05f, 0f, 0.1f), rot, Core.tweenType.sin, bed.Rotation))
-                                                Core.Ani(ref t, 40, ref oa, 10f, 0f, -1f, ref op, new Vector3(0.05f, 0f, 0.1f), Vector3.zero, rot, Core.tweenType.sin, bed.Rotation);
-                                }
-                                else
-                                {
-                                    t = (Find.TickManager.TicksGame + idTick) % 40;
-                                    if (!Core.Ani(ref t, 20, ref oa, 0f, 0f, -1f, ref op, new Vector3(0f, 0f, f), new Vector3(0f, 0f, -f), rot, Core.tweenType.sin, bed.Rotation))
-                                        Core.Ani(ref t, 20, ref oa, 0f, 0f, -1f, ref op, new Vector3(0f, 0f, -f), new Vector3(0f, 0f, f), rot, Core.tweenType.sin, bed.Rotation);
-                                }
-                            }
-
-
-                            break;
-
-                        case "LayDown": // 잠자기
-                            if (!Core.settings.sleepEnabled) break;
-                            if (!(pawn.jobs?.curDriver?.asleep ?? false)) break;
-#if BIOTECH
-                            if (pawn.DevelopmentalStage.Newborn() || pawn.DevelopmentalStage.Baby()) break;
-#endif
-
-                            idTickMult = idTick * 5;
-                            idTickDiv = (Find.TickManager.TicksGame + idTickMult) / 2500;
-                            seed = idTickDiv + idTickMult;
-                            nextUpdate = (idTickDiv + 1) * 2500 - idTickMult;
-
-                            rot = Rand.RangeSeeded(0, 4, seed) switch
-                            {
-                                0 => Rot4.East,
-                                1 => Rot4.West,
-                                2 => Rot4.South,
-                                3 => Rot4.North,
-                                _ => rot
-                            };
-
-                            switch (Rand.RangeSeeded(0, 3, seed + 100))
-                            {
-                                case 0:
-                                    op = new Vector3(Rand.RangeSeeded(-0.1f, 0.1f, seed + 50), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 100));
-                                    break;
-                                case 1:
-                                    op = new Vector3(Rand.RangeSeeded(-0.2f, 0.2f, seed + 150), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 200));
-                                    break;
-                                case 2:
-                                    op = new Vector3(Rand.RangeSeeded(-0.3f, 0.3f, seed + 250), 0f, Rand.RangeSeeded(-0.2f, 0.2f, seed + 300));
-                                    pdd.forcedShowBody = true;
-                                    break;
-                            }
-
-                            oa = Rand.RangeSeeded(0, 3, seed + 200) switch
-                            {
-                                2 => Rand.RangeSeeded(-45f, 45f, seed),
-                                _ => Rand.RangeSeeded(-15f, 15f, seed),
-                            };
-
-                            break;
-
-                        case "Skygaze":
-#if BIOTECH_PLUS
-                        case "Skydreaming":
-#endif
-                        case "VSIE_Skygaze":
-                            seed = pawn.CurJob.loadID + idTick * 5;
-
-                            nextUpdate = int.MaxValue;
-                            op = Rand.RangeSeeded(0, 3, seed + 100) switch
-                            {
-                                0 => new Vector3(Rand.RangeSeeded(-0.1f, 0.1f, seed + 50), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 100)),
-                                1 => new Vector3(Rand.RangeSeeded(-0.2f, 0.2f, seed + 150), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 200)),
-                                _ => new Vector3(Rand.RangeSeeded(-0.3f, 0.3f, seed + 250), 0f, Rand.RangeSeeded(-0.2f, 0.2f, seed + 300)),
-                            };
-
-                            oa = Rand.RangeSeeded(0f, 360f, seed + 200);
-
-                            break;
-
-                        // // Dubs Bad Hygiene
-                        // case "takeBath":
-                        //     rot = Rot4.Invalid;
-                        //     break;
-                        case "UseHotTub":
-                            nextUpdate = int.MaxValue;
-                            if (Rand.ChanceSeeded(0.5f, pawn.CurJob.loadID + idTick))
-                            {
-                                op = new Vector3(0, 0f, 0.5f);
-                                oa = 180f;
-                            }
-
-                            break;
-                        case "VFEV_HypothermiaResponse":
-                            if (!Core.settings.sleepEnabled) break;
-
-                            idTickMult = idTick * 5;
-                            idTickDiv = (Find.TickManager.TicksGame + idTickMult) / 2500;
-                            seed = idTickDiv + idTickMult;
-                            nextUpdate = (idTickDiv + 1) * 2500 - idTickMult;
-
-                            rot = Rand.RangeSeeded(0, 4, seed) switch
-                            {
-                                0 => Rot4.East,
-                                1 => Rot4.West,
-                                2 => Rot4.South,
-                                3 => Rot4.North,
-                                _ => rot
-                            };
-
-                            if (Rand.ChanceSeeded(0.5f, seed + 100))
-                                op = new Vector3(Rand.RangeSeeded(-0.1f, 0.1f, seed + 50), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 100));
-                            else
-                                op = new Vector3(Rand.RangeSeeded(-0.2f, 0.2f, seed + 150), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 200));
-
-                            break;
-
-                        default:
-                            nextUpdate = int.MaxValue; // Update on a new job
-                            break;
-                    }
+                    AniHelper(pawn, pawn.CurJob, ref rot, ref pdd, ref oa, ref op, ref nextUpdate);
                 }
 
                 if (changed)
@@ -1263,6 +1125,132 @@ namespace yayoAni
             catch
             {
                 DataUtility.GetData(pawn).Reset();
+            }
+        }
+
+        public static List<string> lovin = new() { "Lovin", "VSIE_OneStandLovin" };
+        public static List<string> layDown = new() { "LayDown" };
+        public static List<string> skyGaze = new() { "Skygaze", "Skydreaming", "VSIE_Skygaze" };
+        public static List<string> hotTub = new() { "UseHotTub" };
+        public static List<string> hypoThermia = new() { "VFEV_HypothermiaResponse" };
+
+        private static void AniHelper(Pawn pawn, Job currentJob, ref Rot4 rot, ref PawnDrawData pdd, ref float oa, ref Vector3 op, ref int? nextUpdate)
+        {
+
+            int idTick = pawn.thingIDNumber * 20;
+            int seed;
+            int idTickMult;
+            int idTickDiv;
+
+            string defName = currentJob.def.defName;
+            if (lovin.Contains(defName))
+            {
+                if (Core.settings.lovinEnabled && pawn.CurrentBed() is Building_Bed bed)
+                {
+                    var t = (Find.TickManager.TicksGame + idTick % 30) % 360;
+                    const float f = 0.03f;
+                    if (pawn.RaceProps.Humanlike)
+                    {
+                        rot = Core.getRot(currentJob.targetA.Pawn.DrawPos - pawn.DrawPos, bed.Rotation);
+
+                        if (t <= 160)
+                        {
+                            if (!Core.Ani(ref t, 20, ref oa, 0f, 5f, -1f, ref op, Vector3.zero, new Vector3(0.05f, 0f, 0.05f), rot, Core.tweenType.sin, bed.Rotation))
+                                if (!Core.Ani(ref t, 50, ref oa, 5f, 10f, -1f, ref op, new Vector3(0.05f, 0f, 0.05f), new Vector3(0.05f, 0f, 0.1f), rot, Core.tweenType.sin, bed.Rotation))
+                                    if (!Core.Ani(ref t, 50, ref nextUpdate, ref oa, 10f, -1f, ref op, new Vector3(0.05f, 0f, 0.1f), rot, Core.tweenType.sin, bed.Rotation))
+                                        Core.Ani(ref t, 40, ref oa, 10f, 0f, -1f, ref op, new Vector3(0.05f, 0f, 0.1f), Vector3.zero, rot, Core.tweenType.sin, bed.Rotation);
+                        }
+                        else
+                        {
+                            t = (Find.TickManager.TicksGame + idTick) % 40;
+                            if (!Core.Ani(ref t, 20, ref oa, 0f, 0f, -1f, ref op, new Vector3(0f, 0f, f), new Vector3(0f, 0f, -f), rot, Core.tweenType.sin, bed.Rotation))
+                                Core.Ani(ref t, 20, ref oa, 0f, 0f, -1f, ref op, new Vector3(0f, 0f, -f), new Vector3(0f, 0f, f), rot, Core.tweenType.sin, bed.Rotation);
+                        }
+                    }
+                }
+            } else if (layDown.Contains(defName)) 
+            {
+                if (!Core.settings.sleepEnabled || !(pawn.jobs?.curDriver?.asleep ?? false) || pawn.DevelopmentalStage.Newborn() || pawn.DevelopmentalStage.Baby()) {
+                    idTickMult = idTick * 5;
+                    idTickDiv = (Find.TickManager.TicksGame + idTickMult) / 2500;
+                    seed = idTickDiv + idTickMult;
+                    nextUpdate = (idTickDiv + 1) * 2500 - idTickMult;
+
+                    rot = Rand.RangeSeeded(0, 4, seed) switch
+                    {
+                        0 => Rot4.East,
+                        1 => Rot4.West,
+                        2 => Rot4.South,
+                        3 => Rot4.North,
+                        _ => rot
+                    };
+
+                    switch (Rand.RangeSeeded(0, 3, seed + 100))
+                    {
+                        case 0:
+                            op = new Vector3(Rand.RangeSeeded(-0.1f, 0.1f, seed + 50), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 100));
+                            break;
+                        case 1:
+                            op = new Vector3(Rand.RangeSeeded(-0.2f, 0.2f, seed + 150), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 200));
+                            break;
+                        case 2:
+                            op = new Vector3(Rand.RangeSeeded(-0.3f, 0.3f, seed + 250), 0f, Rand.RangeSeeded(-0.2f, 0.2f, seed + 300));
+                            pdd.forcedShowBody = true;
+                            break;
+                    }
+
+                    oa = Rand.RangeSeeded(0, 3, seed + 200) switch
+                    {
+                        2 => Rand.RangeSeeded(-45f, 45f, seed),
+                        _ => Rand.RangeSeeded(-15f, 15f, seed),
+                    };
+                }
+            } else if (skyGaze.Contains(defName))
+            {
+                seed = currentJob.loadID + idTick * 5;
+
+                nextUpdate = int.MaxValue;
+                op = Rand.RangeSeeded(0, 3, seed + 100) switch
+                {
+                    0 => new Vector3(Rand.RangeSeeded(-0.1f, 0.1f, seed + 50), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 100)),
+                    1 => new Vector3(Rand.RangeSeeded(-0.2f, 0.2f, seed + 150), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 200)),
+                    _ => new Vector3(Rand.RangeSeeded(-0.3f, 0.3f, seed + 250), 0f, Rand.RangeSeeded(-0.2f, 0.2f, seed + 300)),
+                };
+
+                oa = Rand.RangeSeeded(0f, 360f, seed + 200);
+            } else if (hotTub.Contains(defName)) {
+                nextUpdate = int.MaxValue;
+                if (Rand.ChanceSeeded(0.5f, currentJob.loadID + idTick))
+                {
+                    op = new Vector3(0, 0f, 0.5f);
+                    oa = 180f;
+                }
+            } else if (hypoThermia.Contains(defName))
+            {
+                if (Core.settings.sleepEnabled)
+                {
+                    idTickMult = idTick * 5;
+                    idTickDiv = (Find.TickManager.TicksGame + idTickMult) / 2500;
+                    seed = idTickDiv + idTickMult;
+                    nextUpdate = (idTickDiv + 1) * 2500 - idTickMult;
+
+                    rot = Rand.RangeSeeded(0, 4, seed) switch
+                    {
+                        0 => Rot4.East,
+                        1 => Rot4.West,
+                        2 => Rot4.South,
+                        3 => Rot4.North,
+                        _ => rot
+                    };
+
+                    if (Rand.ChanceSeeded(0.5f, seed + 100))
+                        op = new Vector3(Rand.RangeSeeded(-0.1f, 0.1f, seed + 50), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 100));
+                    else
+                        op = new Vector3(Rand.RangeSeeded(-0.2f, 0.2f, seed + 150), 0f, Rand.RangeSeeded(-0.1f, 0.1f, seed + 200));
+                }
+            } else
+            {
+                nextUpdate = int.MaxValue; // Update on a new job
             }
         }
     }
